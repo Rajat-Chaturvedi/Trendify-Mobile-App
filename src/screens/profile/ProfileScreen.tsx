@@ -6,6 +6,7 @@ import {
   View, Text, Switch, TouchableOpacity,
   StyleSheet, ScrollView, Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreferencesStore } from '../../stores/preferencesStore';
 import { useAuthStore } from '../../stores/authStore';
 import { getStatus } from '../../services/permissionManager';
@@ -43,8 +44,17 @@ function PermissionBadge({ label, status }: PermissionBadgeProps) {
 }
 
 export function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const prefs = usePreferencesStore.getState();
-  const user = useAuthStore.getState().user;
+  const [token, setToken] = useState(useAuthStore.getState().token);
+
+  useEffect(() => {
+    const unsub = useAuthStore.subscribe((state) => setToken(state.token));
+    return unsub;
+  }, []);
+
+  const displayName = token ? 'Trendify User' : 'Not signed in';
+  const displayStatus = token ? 'Signed in' : 'Guest';
 
   const [categories, setCategories] = useState<Category[]>(prefs.categories);
   const [notificationsEnabled, setNotificationsEnabled] = useState(prefs.notificationsEnabled);
@@ -96,12 +106,12 @@ export function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}>
       {/* User info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-        <Text style={styles.userEmail}>{user?.email ?? 'Not signed in'}</Text>
-        {user?.displayName && <Text style={styles.userName}>{user.displayName}</Text>}
+        <Text style={styles.userEmail}>{displayName}</Text>
+        <Text style={styles.userName}>{displayStatus}</Text>
       </View>
 
       {/* Category preferences */}

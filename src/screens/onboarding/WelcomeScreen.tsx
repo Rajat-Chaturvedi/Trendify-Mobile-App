@@ -11,6 +11,7 @@ interface Props {
 export function WelcomeScreen({ onNext }: Props) {
   return (
     <View style={styles.container}>
+      <Text style={styles.icon}>🔥</Text>
       <Text style={styles.title} accessibilityRole="header">Welcome to Trendify</Text>
       <Text style={styles.subtitle}>Stay on top of what's trending around you.</Text>
       <TouchableOpacity
@@ -26,9 +27,10 @@ export function WelcomeScreen({ onNext }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
-  subtitle: { fontSize: 16, color: '#666', marginBottom: 40, textAlign: 'center' },
-  button: { minWidth: 44, minHeight: 44, backgroundColor: '#007AFF', borderRadius: 8, paddingHorizontal: 32, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#007AFF' },
+  icon: { fontSize: 72, marginBottom: 24 },
+  title: { fontSize: 32, fontWeight: 'bold', marginBottom: 12, textAlign: 'center', color: '#fff' },
+  subtitle: { fontSize: 17, color: 'rgba(255,255,255,0.85)', marginBottom: 48, textAlign: 'center', lineHeight: 24 },
+  button: { minWidth: 200, minHeight: 52, backgroundColor: '#fff', borderRadius: 26, paddingHorizontal: 40, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { color: '#007AFF', fontSize: 17, fontWeight: '700' },
 });

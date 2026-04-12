@@ -10,8 +10,11 @@ export const queryKeys = {
   trendItems: (params: FetchTrendParams) => ['trendItems', params] as const,
 };
 
-export function useTrendFeed(extraParams: Omit<FetchTrendParams, 'categories' | 'cursor'> = {}) {
-  const categories = usePreferencesStore.getState().categories;
+// Accept full FetchTrendParams minus cursor — categories can be overridden by caller
+export function useTrendFeed(extraParams: Omit<FetchTrendParams, 'cursor'> = {}) {
+  const storedCategories = usePreferencesStore.getState().categories;
+  // Caller-provided categories take precedence over stored preferences
+  const categories = extraParams.categories ?? storedCategories;
 
   return useInfiniteQuery<TrendItemPage, Error>({
     queryKey: queryKeys.trendItems({ ...extraParams, categories }),

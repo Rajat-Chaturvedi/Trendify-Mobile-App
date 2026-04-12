@@ -4,7 +4,7 @@
 import React from 'react';
 import {
   View, Text, Image, TouchableOpacity,
-  StyleSheet, ScrollView, Share,
+  StyleSheet, ScrollView, Share, Linking,
 } from 'react-native';
 import { useBookmarksStore } from '../../stores/bookmarksStore';
 import type { TrendItem } from '../../types/index';
@@ -33,14 +33,12 @@ export function TrendItemDetailScreen({ item, onBack }: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {item.imageUrl && (
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={styles.image}
-          accessibilityLabel={`Image for ${item.title}`}
-          resizeMode="cover"
-        />
-      )}
+      <Image
+        source={{ uri: `https://picsum.photos/seed/${item.id}/800/400` }}
+        style={styles.image}
+        accessibilityLabel={`Image for ${item.title}`}
+        resizeMode="cover"
+      />
 
       <View style={styles.body}>
         <Text style={styles.category}>{item.category.toUpperCase()}</Text>
@@ -67,6 +65,17 @@ export function TrendItemDetailScreen({ item, onBack }: Props) {
             <Text style={styles.actionText}>↗ Share</Text>
           </TouchableOpacity>
         </View>
+
+        {!!item.url && (
+          <TouchableOpacity
+            style={styles.readButton}
+            onPress={() => Linking.openURL(item.url)}
+            accessibilityLabel="Read full article"
+            accessibilityRole="link"
+          >
+            <Text style={styles.readButtonText}>Read Full Article →</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -75,13 +84,15 @@ export function TrendItemDetailScreen({ item, onBack }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   content: { paddingBottom: 32 },
-  image: { width: '100%', height: 220 },
+  image: { width: '100%', height: 240 },
   body: { padding: 16 },
   category: { fontSize: 12, color: '#007AFF', fontWeight: '600', marginBottom: 8 },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 8 },
-  meta: { fontSize: 13, color: '#888', marginBottom: 16 },
-  description: { fontSize: 16, lineHeight: 24, color: '#333', marginBottom: 24 },
-  actions: { flexDirection: 'row', gap: 12 },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 8, color: '#1a1a1a' },
+  meta: { fontSize: 13, color: '#8E8E93', marginBottom: 16 },
+  description: { fontSize: 16, lineHeight: 26, color: '#333', marginBottom: 24 },
+  actions: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   actionButton: { minWidth: 44, minHeight: 44, borderWidth: 1, borderColor: '#007AFF', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   actionText: { color: '#007AFF', fontSize: 14, fontWeight: '600' },
+  readButton: { backgroundColor: '#007AFF', borderRadius: 10, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  readButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });
