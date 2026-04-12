@@ -39,16 +39,29 @@ const DEFAULT_PREFERENCES: PreferencesData = {
   dailyReminderTime: null,
 };
 
+// In-memory fallback for Expo Go (react-native-mmkv requires a native build)
+function createInMemoryStorage(): MMKVStorage {
+  const store: Record<string, string | boolean | number> = {};
+  return {
+    getString: (key) => (typeof store[key] === 'string' ? (store[key] as string) : undefined),
+    set: (key, value) => { store[key] = value; },
+    getBoolean: (key) => (typeof store[key] === 'boolean' ? (store[key] as boolean) : undefined),
+  };
+}
+
 // The storage instance — created lazily so tests can inject a mock before import side-effects run.
-// In production (Expo), react-native-mmkv is available natively.
 let _storage: MMKVStorage | null = null;
 
 export function getStorage(): MMKVStorage {
   if (!_storage) {
-    // Dynamically require so tests can mock the module before this runs.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { MMKV } = require('react-native-mmkv') as { MMKV: new (config?: { id?: string }) => MMKVStorage };
-    _storage = new MMKV({ id: 'trendify-storage' });
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { MMKV } = require('react-native-mmkv') as { MMKV: new (config?: { id?: string }) => MMKVStorage };
+      _storage = new MMKV({ id: 'trendify-storage' });
+    } catch {
+      // Expo Go or test environment — fall back to in-memory storage
+      _storage = createInMemoryStorage();
+    }
   }
   return _storage;
 }
