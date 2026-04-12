@@ -17,6 +17,7 @@
     "@tanstack/react-query": "^5.28.0",
     "expo": "^54.0.33",
     "expo-camera": "~17.0.10",
+    "expo-constants": "^55.0.13",
     "expo-image-picker": "~17.0.10",
     "expo-local-authentication": "~17.0.8",
     "expo-location": "~19.0.8",
@@ -47,7 +48,12 @@
       "**/__tests__/**/*.test.ts"
     ],
     "transform": {
-      "^.+\\.tsx?$": ["ts-jest", { "tsconfig": "tsconfig.test.json" }]
+      "^.+\\.tsx?$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.test.json"
+        }
+      ]
     },
     "moduleNameMapper": {
       "^react-native-mmkv$": "<rootDir>/src/__mocks__/react-native-mmkv.ts"

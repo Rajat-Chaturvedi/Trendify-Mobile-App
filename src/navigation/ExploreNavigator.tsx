@@ -2,15 +2,14 @@
 // Requirements: 10.3, 10.4
 
 import React from 'react';
-import { View, Text } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
-const ExploreScreen = () => <View><Text>Explore</Text></View>;
-const TrendItemDetailScreen = () => <View><Text>Trend Detail</Text></View>;
+import { ExploreScreen } from '../screens/explore/ExploreScreen';
+import { TrendItemDetailScreen } from '../screens/feed/TrendItemDetailScreen';
+import type { TrendItem } from '../types/index';
 
 export type ExploreStackParamList = {
   ExploreScreen: undefined;
-  TrendItemDetail: { id: string };
+  TrendItemDetail: { item: TrendItem };
 };
 
 const Stack = createNativeStackNavigator<ExploreStackParamList>();
@@ -18,8 +17,21 @@ const Stack = createNativeStackNavigator<ExploreStackParamList>();
 export function ExploreNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: true }}>
-      <Stack.Screen name="ExploreScreen" component={ExploreScreen} options={{ title: 'Explore' }} />
-      <Stack.Screen name="TrendItemDetail" component={TrendItemDetailScreen} options={{ title: 'Detail' }} />
+      <Stack.Screen name="ExploreScreen" options={{ title: 'Explore' }}>
+        {({ navigation }) => (
+          <ExploreScreen
+            onItemPress={(item) => navigation.navigate('TrendItemDetail', { item })}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="TrendItemDetail" options={{ title: 'Detail' }}>
+        {({ navigation, route }) => (
+          <TrendItemDetailScreen
+            item={route.params.item}
+            onBack={() => navigation.goBack()}
+          />
+        )}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 }

@@ -12,46 +12,62 @@ export interface NotificationAdapter {
   cancelScheduled(): Promise<void>;
 }
 
+function isExpoGo(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Constants = require('expo-constants').default;
+    return Constants?.executionEnvironment === 'storeClient';
+  } catch { return false; }
+}
+
 const defaultAdapter: NotificationAdapter = {
   async requestPermission() {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const Notifications = require('expo-notifications') as {
-      requestPermissionsAsync(): Promise<{ status: string }>;
-    };
-    const { status } = await Notifications.requestPermissionsAsync();
-    return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
+    if (isExpoGo()) return 'undetermined';
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Notifications = require('expo-notifications') as {
+        requestPermissionsAsync(): Promise<{ status: string }>;
+      };
+      const { status } = await Notifications.requestPermissionsAsync();
+      return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
+    } catch { return 'undetermined'; }
   },
 
   async register() {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const Notifications = require('expo-notifications') as {
-      getExpoPushTokenAsync(): Promise<{ data: string }>;
-    };
+    if (isExpoGo()) return null;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Notifications = require('expo-notifications') as {
+        getExpoPushTokenAsync(): Promise<{ data: string }>;
+      };
       const { data } = await Notifications.getExpoPushTokenAsync();
       return data;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   },
 
   async scheduleDaily(hour, minute) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const Notifications = require('expo-notifications') as {
-      scheduleNotificationAsync(req: object): Promise<string>;
-    };
-    await Notifications.scheduleNotificationAsync({
-      content: { title: "Today's Trends", body: 'Check out what is trending today.' },
-      trigger: { hour, minute, repeats: true },
-    });
+    if (isExpoGo()) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Notifications = require('expo-notifications') as {
+        scheduleNotificationAsync(req: object): Promise<string>;
+      };
+      await Notifications.scheduleNotificationAsync({
+        content: { title: "Today's Trends", body: 'Check out what is trending today.' },
+        trigger: { hour, minute, repeats: true },
+      });
+    } catch {}
   },
 
   async cancelScheduled() {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const Notifications = require('expo-notifications') as {
-      cancelAllScheduledNotificationsAsync(): Promise<void>;
-    };
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    if (isExpoGo()) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Notifications = require('expo-notifications') as {
+        cancelAllScheduledNotificationsAsync(): Promise<void>;
+      };
+      await Notifications.cancelAllScheduledNotificationsAsync();
+    } catch {}
   },
 };
 

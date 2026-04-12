@@ -12,25 +12,29 @@ export interface BiometricAdapter {
 
 const defaultAdapter: BiometricAdapter = {
   async isAvailable() {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const LocalAuth = require('expo-local-authentication') as {
-      hasHardwareAsync(): Promise<boolean>;
-      isEnrolledAsync(): Promise<boolean>;
-    };
-    const [hasHardware, isEnrolled] = await Promise.all([
-      LocalAuth.hasHardwareAsync(),
-      LocalAuth.isEnrolledAsync(),
-    ]);
-    return hasHardware && isEnrolled;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const LocalAuth = require('expo-local-authentication') as {
+        hasHardwareAsync(): Promise<boolean>;
+        isEnrolledAsync(): Promise<boolean>;
+      };
+      const [hasHardware, isEnrolled] = await Promise.all([
+        LocalAuth.hasHardwareAsync(),
+        LocalAuth.isEnrolledAsync(),
+      ]);
+      return hasHardware && isEnrolled;
+    } catch { return false; }
   },
 
   async authenticate(reason) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const LocalAuth = require('expo-local-authentication') as {
-      authenticateAsync(opts: { promptMessage: string }): Promise<{ success: boolean; error?: string }>;
-    };
-    const result = await LocalAuth.authenticateAsync({ promptMessage: reason });
-    return { success: result.success, error: result.error };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const LocalAuth = require('expo-local-authentication') as {
+        authenticateAsync(opts: { promptMessage: string }): Promise<{ success: boolean; error?: string }>;
+      };
+      const result = await LocalAuth.authenticateAsync({ promptMessage: reason });
+      return { success: result.success, error: result.error };
+    } catch { return { success: false, error: 'Biometrics unavailable' }; }
   },
 };
 

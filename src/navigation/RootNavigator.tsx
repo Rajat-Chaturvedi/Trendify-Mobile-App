@@ -1,17 +1,15 @@
 // RootNavigator
 // Requirements: 10.1, 10.3, 1.1
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 
 import { getOnboardingComplete } from '../storage/mmkv';
 import { useAuthStore } from '../stores/authStore';
 import { OnboardingNavigator } from './OnboardingNavigator';
 import { AuthNavigator } from './AuthNavigator';
 import { MainNavigator } from './MainNavigator';
-
-// ─── Root param list ──────────────────────────────────────────────────────────
 
 export type RootStackParamList = {
   Onboarding: undefined;
@@ -21,42 +19,45 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export function RootNavigator() {
-  // Subscribe to auth state changes so the navigator re-renders on login/logout
+  const navRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
+
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => useAuthStore.getState().isAuthenticated,
   );
 
-  useEffect(() => {
-    // useAuthStore is a vanilla zustand store — subscribe returns an unsubscribe fn
-    const unsubscribe = useAuthStore.subscribe((state) => {
-      setIsAuthenticated(state.isAuthenticated);
-    });
-    return unsubscribe;
-  }, []);
-
   const onboardingComplete = getOnboardingComplete();
 
-  // Determine initial route based on flags
   const initialRoute: keyof RootStackParamList = !onboardingComplete
     ? 'Onboarding'
     : isAuthenticated
     ? 'Main'
     : 'Auth';
 
+  useEffect(() => {
+    const unsubscribe = useAuthStore.subscribe((state) => {
+      setIsAuthenticated(state.isAuthenticated);
+      if (state.isAuthenticated) {
+        navRef.current?.reset({ index: 0, routes: [{ name: 'Main' }] });
+      } else {
+        navRef.current?.reset({ index: 0, routes: [{ name: 'Auth' }] });
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  function handleOnboardingComplete() {
+    navRef.current?.reset({ index: 0, routes: [{ name: 'Auth' }] });
+  }
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navRef}>
       <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
-        {!onboardingComplete && (
-          <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
-        )}
-        {!isAuthenticated ? (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
-        ) : (
-          <Stack.Screen name="Main" component={MainNavigator} />
-        )}
+        <Stack.Screen name="Onboarding">
+          {() => <OnboardingNavigator onComplete={handleOnboardingComplete} />}
+        </Stack.Screen>
+        <Stack.Screen name="Auth" component={AuthNavigator} />
+        <Stack.Screen name="Main" component={MainNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -2,15 +2,14 @@
 // Requirements: 10.3, 10.4
 
 import React from 'react';
-import { View, Text } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
-const FeedScreen = () => <View><Text>Feed</Text></View>;
-const TrendItemDetailScreen = () => <View><Text>Trend Detail</Text></View>;
+import { FeedScreen } from '../screens/feed/FeedScreen';
+import { TrendItemDetailScreen } from '../screens/feed/TrendItemDetailScreen';
+import type { TrendItem } from '../types/index';
 
 export type FeedStackParamList = {
   FeedScreen: undefined;
-  TrendItemDetail: { id: string };
+  TrendItemDetail: { item: TrendItem };
 };
 
 const Stack = createNativeStackNavigator<FeedStackParamList>();
@@ -18,8 +17,22 @@ const Stack = createNativeStackNavigator<FeedStackParamList>();
 export function FeedNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: true }}>
-      <Stack.Screen name="FeedScreen" component={FeedScreen} options={{ title: 'Feed' }} />
-      <Stack.Screen name="TrendItemDetail" component={TrendItemDetailScreen} options={{ title: 'Detail' }} />
+      <Stack.Screen name="FeedScreen" options={{ title: 'Trending' }}>
+        {({ navigation }) => (
+          <FeedScreen
+            onItemPress={(item) => navigation.navigate('TrendItemDetail', { item })}
+            onBookmarksPress={() => {}}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="TrendItemDetail" options={{ title: 'Detail' }}>
+        {({ navigation, route }) => (
+          <TrendItemDetailScreen
+            item={route.params.item}
+            onBack={() => navigation.goBack()}
+          />
+        )}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 }

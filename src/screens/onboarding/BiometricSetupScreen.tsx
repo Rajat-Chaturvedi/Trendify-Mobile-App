@@ -1,7 +1,7 @@
 // BiometricSetupScreen
 // Requirements: 1.4, 1.5
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { isAvailable } from '../../services/biometricService';
 import { setOnboardingComplete } from '../../storage/mmkv';
@@ -12,26 +12,34 @@ interface Props {
 }
 
 export function BiometricSetupScreen({ onDone }: Props) {
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
-
-  useEffect(() => {
-    isAvailable().then(setBiometricAvailable);
-  }, []);
-
-  function handleEnable() {
-    usePreferencesStore.getState().setBiometricEnabled(true);
-    finishOnboarding();
-  }
+  const doneCalled = useRef(false);
+  const [checked, setChecked] = React.useState(false);
+  const [available, setAvailable] = React.useState(false);
 
   function finishOnboarding() {
+    if (doneCalled.current) return;
+    doneCalled.current = true;
     setOnboardingComplete(true);
     onDone();
   }
 
-  if (!biometricAvailable) {
-    // Skip biometric setup — just complete onboarding
+  useEffect(() => {
+    isAvailable().then((avail) => {
+      if (!avail) {
+        finishOnboarding();
+      } else {
+        setAvailable(true);
+        setChecked(true);
+      }
+    }).catch(() => finishOnboarding());
+  }, []);
+
+  // Don't render until we know biometrics are available
+  if (!checked) return null;
+
+  function handleEnable() {
+    usePreferencesStore.getState().setBiometricEnabled(true);
     finishOnboarding();
-    return null;
   }
 
   return (

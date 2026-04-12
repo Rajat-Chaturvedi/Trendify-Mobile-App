@@ -1,37 +1,12 @@
 // OnboardingNavigator
-// Requirements: 10.1, 10.3
+// Requirements: 1.1, 1.2, 1.3, 1.4, 1.5
 
 import React from 'react';
-import { View, Text } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
-// ─── Placeholder screens ──────────────────────────────────────────────────────
-
-const WelcomeScreen = () => (
-  <View>
-    <Text>Welcome</Text>
-  </View>
-);
-
-const FeatureIntroScreen = () => (
-  <View>
-    <Text>Feature Intro</Text>
-  </View>
-);
-
-const PermissionsScreen = () => (
-  <View>
-    <Text>Permissions</Text>
-  </View>
-);
-
-const BiometricSetupScreen = () => (
-  <View>
-    <Text>Biometric Setup</Text>
-  </View>
-);
-
-// ─── Stack param list ─────────────────────────────────────────────────────────
+import { WelcomeScreen } from '../screens/onboarding/WelcomeScreen';
+import { FeatureIntroScreen } from '../screens/onboarding/FeatureIntroScreen';
+import { PermissionsScreen } from '../screens/onboarding/PermissionsScreen';
+import { BiometricSetupScreen } from '../screens/onboarding/BiometricSetupScreen';
 
 export type OnboardingStackParamList = {
   Welcome: undefined;
@@ -42,13 +17,31 @@ export type OnboardingStackParamList = {
 
 const Stack = createNativeStackNavigator<OnboardingStackParamList>();
 
-export function OnboardingNavigator() {
+interface Props {
+  onComplete: () => void;
+}
+
+export function OnboardingNavigator({ onComplete }: Props) {
   return (
     <Stack.Navigator initialRouteName="Welcome" screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Welcome" component={WelcomeScreen} />
-      <Stack.Screen name="FeatureIntro" component={FeatureIntroScreen} />
-      <Stack.Screen name="Permissions" component={PermissionsScreen} />
-      <Stack.Screen name="BiometricSetup" component={BiometricSetupScreen} />
+      <Stack.Screen name="Welcome">
+        {({ navigation }) => (
+          <WelcomeScreen onNext={() => navigation.navigate('FeatureIntro')} />
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="FeatureIntro">
+        {({ navigation }) => (
+          <FeatureIntroScreen onNext={() => navigation.navigate('Permissions')} />
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="Permissions">
+        {({ navigation }) => (
+          <PermissionsScreen onNext={() => navigation.navigate('BiometricSetup')} />
+        )}
+      </Stack.Screen>
+      <Stack.Screen name="BiometricSetup">
+        {() => <BiometricSetupScreen onDone={onComplete} />}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 }

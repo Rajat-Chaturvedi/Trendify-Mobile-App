@@ -15,27 +15,20 @@ export interface AuthApiAdapter {
   register(email: string, password: string): Promise<{ token: string } | null>;
 }
 
+// Local mock adapter — accepts any valid email + password (min 6 chars).
+// Replace with a real API adapter when a backend is available.
 const defaultAdapter: AuthApiAdapter = {
   async login(email, password) {
-    const res = await fetch('https://reqres.in/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { token?: string };
-    return data.token ? { token: data.token } : null;
+    if (!email.includes('@') || password.length < 6) return null;
+    // Generate a deterministic mock token from the email
+    const token = `mock_${btoa(email)}_${Date.now()}`;
+    return { token };
   },
 
   async register(email, password) {
-    const res = await fetch('https://reqres.in/api/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { token?: string };
-    return data.token ? { token: data.token } : null;
+    if (!email.includes('@') || password.length < 6) return null;
+    const token = `mock_${btoa(email)}_${Date.now()}`;
+    return { token };
   },
 };
 

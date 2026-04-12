@@ -6,69 +6,99 @@ import { getPermissionDenials, setPermissionDenials } from '../storage/mmkv';
 
 // ─── Adapter interface ────────────────────────────────────────────────────────
 
-/** Minimal interface for requesting and querying permissions. */
 export interface PermissionsAdapter {
   request(type: PermissionType): Promise<PermissionStatus>;
   getStatus(type: PermissionType): Promise<PermissionStatus>;
 }
 
-// ─── Default (production) adapter ────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Maps a PermissionType to the appropriate Expo module and invokes it.
- * Dynamically required so tests can inject a mock before this runs.
- */
+function toStatus(status: string): PermissionStatus {
+  if (status === 'granted') return 'granted';
+  if (status === 'denied') return 'denied';
+  return 'undetermined';
+}
+
+async function requestCameraPermission(): Promise<PermissionStatus> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('expo-camera');
+    const { status } = await mod.requestCameraPermissionsAsync();
+    return toStatus(status);
+  } catch { return 'undetermined'; }
+}
+
+async function getCameraStatus(): Promise<PermissionStatus> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('expo-camera');
+    const { status } = await mod.getCameraPermissionsAsync();
+    return toStatus(status);
+  } catch { return 'undetermined'; }
+}
+
+async function requestLocationPermission(): Promise<PermissionStatus> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('expo-location');
+    const { status } = await mod.requestForegroundPermissionsAsync();
+    return toStatus(status);
+  } catch { return 'undetermined'; }
+}
+
+async function getLocationStatus(): Promise<PermissionStatus> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('expo-location');
+    const { status } = await mod.getForegroundPermissionsAsync();
+    return toStatus(status);
+  } catch { return 'undetermined'; }
+}
+
+async function requestNotificationPermission(): Promise<PermissionStatus> {
+  try {
+    // expo-notifications push support was removed from Expo Go in SDK 53+
+    // Detect Expo Go by checking the app ownership
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Constants = require('expo-constants').default;
+    const isExpoGo = Constants?.executionEnvironment === 'storeClient';
+    if (isExpoGo) return 'undetermined';
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('expo-notifications');
+    if (typeof mod.requestPermissionsAsync !== 'function') return 'undetermined';
+    const { status } = await mod.requestPermissionsAsync();
+    return toStatus(status);
+  } catch { return 'undetermined'; }
+}
+
+async function getNotificationStatus(): Promise<PermissionStatus> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Constants = require('expo-constants').default;
+    const isExpoGo = Constants?.executionEnvironment === 'storeClient';
+    if (isExpoGo) return 'undetermined';
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('expo-notifications');
+    if (typeof mod.getPermissionsAsync !== 'function') return 'undetermined';
+    const { status } = await mod.getPermissionsAsync();
+    return toStatus(status);
+  } catch { return 'undetermined'; }
+}
+
+// ─── Default adapter ──────────────────────────────────────────────────────────
+
 const defaultAdapter: PermissionsAdapter = {
-  async request(type: PermissionType): Promise<PermissionStatus> {
-    if (type === 'camera') {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { requestCameraPermissionsAsync } = require('expo-camera') as {
-        requestCameraPermissionsAsync(): Promise<{ status: string }>;
-      };
-      const { status } = await requestCameraPermissionsAsync();
-      return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
-    }
-    if (type === 'location') {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { requestForegroundPermissionsAsync } = require('expo-location') as {
-        requestForegroundPermissionsAsync(): Promise<{ status: string }>;
-      };
-      const { status } = await requestForegroundPermissionsAsync();
-      return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
-    }
-    // notifications
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { requestPermissionsAsync } = require('expo-notifications') as {
-      requestPermissionsAsync(): Promise<{ status: string }>;
-    };
-    const { status } = await requestPermissionsAsync();
-    return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
+  async request(type) {
+    if (type === 'camera') return requestCameraPermission();
+    if (type === 'location') return requestLocationPermission();
+    return requestNotificationPermission();
   },
-
-  async getStatus(type: PermissionType): Promise<PermissionStatus> {
-    if (type === 'camera') {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { getCameraPermissionsAsync } = require('expo-camera') as {
-        getCameraPermissionsAsync(): Promise<{ status: string }>;
-      };
-      const { status } = await getCameraPermissionsAsync();
-      return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
-    }
-    if (type === 'location') {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { getForegroundPermissionsAsync } = require('expo-location') as {
-        getForegroundPermissionsAsync(): Promise<{ status: string }>;
-      };
-      const { status } = await getForegroundPermissionsAsync();
-      return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
-    }
-    // notifications
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { getPermissionsAsync } = require('expo-notifications') as {
-      getPermissionsAsync(): Promise<{ status: string }>;
-    };
-    const { status } = await getPermissionsAsync();
-    return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
+  async getStatus(type) {
+    if (type === 'camera') return getCameraStatus();
+    if (type === 'location') return getLocationStatus();
+    return getNotificationStatus();
   },
 };
 
@@ -76,43 +106,29 @@ const defaultAdapter: PermissionsAdapter = {
 
 let _adapter: PermissionsAdapter = defaultAdapter;
 
-/** Override the permissions adapter (useful for testing). */
 export function setPermissionsAdapter(adapter: PermissionsAdapter): void {
   _adapter = adapter;
 }
 
-/** Returns the current permissions adapter. */
 export function getPermissionsAdapter(): PermissionsAdapter {
   return _adapter;
 }
 
-// ─── PermissionManager ───────────────────────────────────────────────────────
+// ─── Public API ───────────────────────────────────────────────────────────────
 
-/**
- * Requests camera, location, and notification permissions in sequence.
- * Returns the resulting status for each type.
- */
 export async function requestAll(): Promise<PermissionResults> {
-  const adapter = getPermissionsAdapter();
   const [camera, location, notifications] = await Promise.all([
-    adapter.request('camera'),
-    adapter.request('location'),
-    adapter.request('notifications'),
+    _adapter.request('camera'),
+    _adapter.request('location'),
+    _adapter.request('notifications'),
   ]);
   return { camera, location, notifications };
 }
 
-/**
- * Returns the current permission status for the given type.
- */
 export async function getStatus(type: PermissionType): Promise<PermissionStatus> {
-  return getPermissionsAdapter().getStatus(type);
+  return _adapter.getStatus(type);
 }
 
-/**
- * Records a permission denial in MMKV storage.
- * Adds the type to the denial list if not already present.
- */
 export function recordDenial(type: PermissionType): void {
   const denials = getPermissionDenials();
   if (!denials.includes(type)) {
