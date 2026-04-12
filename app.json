@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Trendify",
+    "slug": "trendify",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#007AFF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.trendify.app"
+    },
+    "android": {
+      "package": "com.trendify.app",
+      "newArchEnabled": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#007AFF"
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-local-authentication",
+      [
+        "expo-camera",
+        { "cameraPermission": "Allow Trendify to access your camera." }
+      ],
+      [
+        "expo-location",
+        { "locationWhenInUsePermission": "Allow Trendify to use your location for local trends." }
+      ],
+      "expo-notifications"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a2f97fdf-8019-4af4-865e-06879eca60b5"
+      }
+    }
+  }
+}
