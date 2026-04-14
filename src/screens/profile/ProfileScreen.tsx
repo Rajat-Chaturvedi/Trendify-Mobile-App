@@ -4,13 +4,15 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, Switch, TouchableOpacity, TextInput,
-  StyleSheet, ScrollView, Linking, ActivityIndicator, Alert,
+  StyleSheet, ScrollView, Linking, ActivityIndicator,
+  Alert, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreferencesStore } from '../../stores/preferencesStore';
 import { useAuthStore } from '../../stores/authStore';
 import { getStatus } from '../../services/permissionManager';
 import { register as registerNotifications, cancelScheduled } from '../../services/notificationService';
+import { logout } from '../../services/authService';
 import { apiFetch } from '../../api/http';
 import type { Category, PermissionStatus } from '../../types/index';
 
@@ -47,6 +49,7 @@ export function ProfileScreen() {
   const [editingName, setEditingName] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [savingName, setSavingName] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>(prefs.categories);
   const [notificationsEnabled, setNotificationsEnabled] = useState(prefs.notificationsEnabled);
@@ -79,9 +82,9 @@ export function ProfileScreen() {
         body: JSON.stringify({ displayName: displayName.trim() }),
       });
       if (res.ok) {
-        const data = (await res.json()) as { id: string; email: string; displayName?: string };
+        const data = (await res.json()) as { id: string; email: string; displayName?: string; avatarUrl?: string };
         useAuthStore.setState({
-          user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email },
+          user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email, avatarUrl: data.avatarUrl ?? user?.avatarUrl },
         });
         setEditingName(false);
       } else {
@@ -92,6 +95,85 @@ export function ProfileScreen() {
     } finally {
       setSavingName(false);
     }
+  }
+
+  async function handleAvatarPress() {
+    Alert.alert('Profile Photo', 'Choose an option', [
+      { text: 'Take Photo', onPress: () => pickAvatar('camera') },
+      { text: 'Choose from Library', onPress: () => pickAvatar('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  async function pickAvatar(source: 'camera' | 'library') {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const ImagePicker = require('expo-image-picker');
+      let result;
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (perm.status !== 'granted') {
+          Alert.alert('Permission needed', 'Camera permission is required.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true });
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (perm.status !== 'granted') {
+          Alert.alert('Permission needed', 'Photo library permission is required.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true });
+      }
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      setUploadingAvatar(true);
+
+      // Send as base64 data URI to dedicated avatar endpoint
+      const base64 = asset.base64;
+      const mimeType = asset.mimeType ?? 'image/jpeg';
+      const dataUri = base64 ? `data:${mimeType};base64,${base64}` : null;
+
+      if (!dataUri) {
+        Alert.alert('Error', 'Could not read image data.');
+        setUploadingAvatar(false);
+        return;
+      }
+
+      const res = await apiFetch('/users/me/avatar', {
+        method: 'POST',
+        body: JSON.stringify({ avatar: dataUri }),
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as { avatarUrl?: string };
+        useAuthStore.setState((state) => ({
+          user: state.user ? { ...state.user, avatarUrl: data.avatarUrl ?? asset.uri } : state.user,
+        }));
+      } else {
+        Alert.alert('Error', 'Could not upload photo.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not upload photo.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  function handleLogout() {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          useAuthStore.getState().clearAuth();
+        },
+      },
+    ]);
   }
 
   function toggleCategory(cat: Category) {
@@ -109,67 +191,86 @@ export function ProfileScreen() {
     else await cancelScheduled();
   }
 
-  function handleLocationToggle(val: boolean) {
-    setLocationEnabled(val);
-    usePreferencesStore.getState().setLocationEnabled(val);
-  }
-
-  function handleBiometricToggle(val: boolean) {
-    setBiometricEnabled(val);
-    usePreferencesStore.getState().setBiometricEnabled(val);
-  }
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}>
 
       {/* Account */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-        <Text style={styles.userEmail}>{user?.email ?? 'Not signed in'}</Text>
 
-        {editingName ? (
-          <View style={styles.editRow}>
-            <TextInput
-              style={styles.nameInput}
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="Display name"
-              autoFocus
-              accessibilityLabel="Display name input"
-            />
-            <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={handleSaveDisplayName}
-              disabled={savingName}
-              accessibilityLabel="Save display name"
-              accessibilityRole="button"
-            >
-              {savingName
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.saveBtnText}>Save</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => { setEditingName(false); setDisplayName(user?.displayName ?? ''); }}
-              accessibilityLabel="Cancel editing"
-              accessibilityRole="button"
-            >
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
+        {/* Avatar */}
+        <View style={styles.avatarRow}>
+          <TouchableOpacity
+            onPress={handleAvatarPress}
+            accessibilityLabel="Change profile photo"
+            accessibilityRole="button"
+            style={styles.avatarContainer}
+          >
+            {uploadingAvatar ? (
+              <View style={styles.avatarPlaceholder}>
+                <ActivityIndicator color="#007AFF" />
+              </View>
+            ) : user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarInitial}>
+                  {(user?.displayName ?? user?.email ?? '?')[0].toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={styles.avatarEditBadge}>
+              <Text style={styles.avatarEditIcon}>📷</Text>
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.userInfo}>
+            <Text style={styles.userEmail}>{user?.email ?? 'Not signed in'}</Text>
+            {editingName ? (
+              <View style={styles.editRow}>
+                <TextInput
+                  style={styles.nameInput}
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  placeholder="Display name"
+                  autoFocus
+                  accessibilityLabel="Display name input"
+                />
+                <TouchableOpacity
+                  style={styles.saveBtn}
+                  onPress={handleSaveDisplayName}
+                  disabled={savingName}
+                  accessibilityLabel="Save display name"
+                  accessibilityRole="button"
+                >
+                  {savingName
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={styles.saveBtnText}>Save</Text>}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setEditingName(true)}
+                accessibilityLabel="Edit display name"
+                accessibilityRole="button"
+                style={styles.nameRow}
+              >
+                <Text style={styles.userName}>{user?.displayName ?? 'Set display name'}</Text>
+                <Text style={styles.editBtnText}>✏️</Text>
+              </TouchableOpacity>
+            )}
           </View>
-        ) : (
-          <View style={styles.nameRow}>
-            <Text style={styles.userName}>{user?.displayName ?? 'Set display name'}</Text>
-            <TouchableOpacity
-              onPress={() => setEditingName(true)}
-              accessibilityLabel="Edit display name"
-              accessibilityRole="button"
-              style={styles.editBtn}
-            >
-              <Text style={styles.editBtnText}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        </View>
+
+        {/* Logout */}
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={handleLogout}
+          accessibilityLabel="Sign out"
+          accessibilityRole="button"
+        >
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Interests */}
@@ -197,8 +298,8 @@ export function ProfileScreen() {
         <Text style={styles.sectionTitle}>Preferences</Text>
         {[
           { label: 'Notifications', value: notificationsEnabled, onChange: handleNotificationsToggle },
-          { label: 'Location', value: locationEnabled, onChange: handleLocationToggle },
-          { label: 'Biometric Login', value: biometricEnabled, onChange: handleBiometricToggle },
+          { label: 'Location', value: locationEnabled, onChange: (v: boolean) => { setLocationEnabled(v); usePreferencesStore.getState().setLocationEnabled(v); } },
+          { label: 'Biometric Login', value: biometricEnabled, onChange: (v: boolean) => { setBiometricEnabled(v); usePreferencesStore.getState().setBiometricEnabled(v); } },
         ].map(({ label, value, onChange }) => (
           <View key={label} style={styles.row}>
             <Text style={styles.rowLabel}>{label}</Text>
@@ -223,17 +324,24 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32 },
   section: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16 },
   sectionTitle: { fontSize: 12, fontWeight: '700', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
-  userEmail: { fontSize: 16, fontWeight: '600', color: '#1a1a1a' },
-  nameRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  userName: { fontSize: 14, color: '#555', flex: 1 },
-  editBtn: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'flex-end' },
-  editBtnText: { color: '#007AFF', fontSize: 14, fontWeight: '600' },
-  editRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },
-  nameInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, minHeight: 44 },
+  avatarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  avatarContainer: { position: 'relative', marginRight: 16 },
+  avatar: { width: 72, height: 72, borderRadius: 36 },
+  avatarPlaceholder: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#E5E5EA', alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { fontSize: 28, fontWeight: '700', color: '#007AFF' },
+  avatarEditBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#007AFF', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  avatarEditIcon: { fontSize: 12 },
+  userInfo: { flex: 1 },
+  userEmail: { fontSize: 14, color: '#8E8E93', marginBottom: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  userName: { fontSize: 17, fontWeight: '600', color: '#1a1a1a', flex: 1 },
+  editBtnText: { fontSize: 16 },
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  nameInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 14, minHeight: 44 },
   saveBtn: { minWidth: 44, minHeight: 44, backgroundColor: '#007AFF', borderRadius: 8, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  cancelBtn: { minWidth: 44, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
-  cancelBtnText: { color: '#8E8E93', fontSize: 14 },
+  logoutBtn: { minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: '#FF3B30', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
+  logoutText: { color: '#FF3B30', fontSize: 16, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', alignItems: 'center', justifyContent: 'center' },
   chipActive: { backgroundColor: '#007AFF', borderColor: '#007AFF' },

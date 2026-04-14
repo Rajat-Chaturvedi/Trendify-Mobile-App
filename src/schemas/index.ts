@@ -27,7 +27,7 @@ export const TrendItemSchema = z.object({
 
 export const TrendItemPageSchema = z.object({
   items: z.array(TrendItemSchema),
-  nextCursor: z.string().optional(),
+  nextCursor: z.string().nullable().optional(),
   totalCount: z.number().int().nonnegative(),
 });
 

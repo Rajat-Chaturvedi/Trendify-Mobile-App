@@ -105,9 +105,9 @@ export async function fetchAndSetProfile(): Promise<void> {
     const { apiFetch } = await import('../api/http');
     const res = await apiFetch('/users/me');
     if (!res.ok) return;
-    const data = (await res.json()) as { id: string; email: string; displayName?: string };
+    const data = (await res.json()) as { id: string; email: string; displayName?: string; avatarUrl?: string };
     useAuthStore.setState({
-      user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email },
+      user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email, avatarUrl: data.avatarUrl },
     });
   } catch { /* ignore */ }
 }
