@@ -6,8 +6,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
-import { restoreSession } from './src/services/authService';
+import { restoreSession, fetchAndSetProfile } from './src/services/authService';
 import { useAuthStore } from './src/stores/authStore';
+import { useBookmarksStore } from './src/stores/bookmarksStore';
+import { usePreferencesStore } from './src/stores/preferencesStore';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,10 +23,13 @@ const queryClient = new QueryClient({
 
 export default function App() {
   useEffect(() => {
-    // Restore auth session on app start
-    restoreSession().then((token) => {
+    restoreSession().then(async (token) => {
       if (token) {
         useAuthStore.getState().setToken(token);
+        // Sync user profile, bookmarks and preferences from API
+        await fetchAndSetProfile();
+        await useBookmarksStore.getState().syncFromApi();
+        await usePreferencesStore.getState().syncFromApi();
       }
     });
   }, []);

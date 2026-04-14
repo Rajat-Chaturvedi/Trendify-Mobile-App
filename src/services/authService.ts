@@ -1,60 +1,57 @@
-// Auth Service
+// Auth Service — real API
 // Requirements: 2.1, 2.2, 2.3, 2.4, 2.6
 
-import type { AuthToken, AuthResult } from '../types/index';
+import type { AuthToken, AuthResult, UserProfile } from '../types/index';
 import {
   storeToken as secureStoreToken,
   getToken,
   clearToken as secureStoreClearToken,
+  getSecureStore,
 } from '../storage/secureStore';
-
-// ─── API Adapter ──────────────────────────────────────────────────────────────
-
-export interface AuthApiAdapter {
-  login(email: string, password: string): Promise<{ token: string } | null>;
-  register(email: string, password: string): Promise<{ token: string } | null>;
-}
-
-// Local mock adapter — accepts any valid email + password (min 6 chars).
-// Replace with a real API adapter when a backend is available.
-const defaultAdapter: AuthApiAdapter = {
-  async login(email, password) {
-    if (!email.includes('@') || password.length < 6) return null;
-    // Generate a deterministic mock token from the email
-    const token = `mock_${btoa(email)}_${Date.now()}`;
-    return { token };
-  },
-
-  async register(email, password) {
-    if (!email.includes('@') || password.length < 6) return null;
-    const token = `mock_${btoa(email)}_${Date.now()}`;
-    return { token };
-  },
-};
-
-let _adapter: AuthApiAdapter = defaultAdapter;
-
-export function setAuthApiAdapter(adapter: AuthApiAdapter): void {
-  _adapter = adapter;
-}
-
-export function getAuthApiAdapter(): AuthApiAdapter {
-  return _adapter;
-}
-
-// ─── Generic error message (must not reveal which field is wrong) ─────────────
+import { useAuthStore } from '../stores/authStore';
+import { API_V1 } from '../api/config';
 
 const GENERIC_ERROR = 'Authentication failed. Please try again.';
 
-// ─── AuthService ──────────────────────────────────────────────────────────────
+interface AuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn?: number;
+  user?: { id: string; email: string; displayName?: string };
+}
+
+async function handleAuthResponse(data: AuthResponse): Promise<AuthResult> {
+  const token: AuthToken = {
+    accessToken: data.accessToken,
+    expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000,
+  };
+  await secureStoreToken(token);
+  // Store refresh token separately
+  await getSecureStore().setItemAsync('refresh_token', data.refreshToken);
+
+  // Set user profile in store if returned
+  if (data.user) {
+    const profile: UserProfile = {
+      id: data.user.id,
+      email: data.user.email,
+      displayName: data.user.displayName ?? data.user.email,
+    };
+    useAuthStore.setState({ user: profile });
+  }
+
+  return { success: true, token };
+}
 
 export async function login(email: string, password: string): Promise<AuthResult> {
   try {
-    const result = await _adapter.login(email, password);
-    if (!result) return { success: false, error: GENERIC_ERROR };
-    const token: AuthToken = { accessToken: result.token, expiresAt: Date.now() + 86400000 };
-    await secureStoreToken(token);
-    return { success: true, token };
+    const res = await fetch(`${API_V1}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) return { success: false, error: GENERIC_ERROR };
+    const data = (await res.json()) as AuthResponse;
+    return handleAuthResponse(data);
   } catch {
     return { success: false, error: GENERIC_ERROR };
   }
@@ -62,18 +59,32 @@ export async function login(email: string, password: string): Promise<AuthResult
 
 export async function register(email: string, password: string): Promise<AuthResult> {
   try {
-    const result = await _adapter.register(email, password);
-    if (!result) return { success: false, error: GENERIC_ERROR };
-    const token: AuthToken = { accessToken: result.token, expiresAt: Date.now() + 86400000 };
-    await secureStoreToken(token);
-    return { success: true, token };
+    const res = await fetch(`${API_V1}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) return { success: false, error: GENERIC_ERROR };
+    const data = (await res.json()) as AuthResponse;
+    return handleAuthResponse(data);
   } catch {
     return { success: false, error: GENERIC_ERROR };
   }
 }
 
 export async function logout(): Promise<void> {
+  try {
+    const token = useAuthStore.getState().token?.accessToken;
+    if (token) {
+      await fetch(`${API_V1}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+    }
+  } catch { /* ignore */ }
   await secureStoreClearToken();
+  await getSecureStore().deleteItemAsync('refresh_token');
 }
 
 export async function restoreSession(): Promise<AuthToken | null> {
@@ -86,4 +97,17 @@ export async function storeToken(token: AuthToken): Promise<void> {
 
 export async function clearToken(): Promise<void> {
   await secureStoreClearToken();
+}
+
+// Fetch user profile from API and update store
+export async function fetchAndSetProfile(): Promise<void> {
+  try {
+    const { apiFetch } = await import('../api/http');
+    const res = await apiFetch('/users/me');
+    if (!res.ok) return;
+    const data = (await res.json()) as { id: string; email: string; displayName?: string };
+    useAuthStore.setState({
+      user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email },
+    });
+  } catch { /* ignore */ }
 }

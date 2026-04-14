@@ -51,10 +51,12 @@ export interface TrendItem {
   description: string;
   source: string;
   publishedAt: string; // ISO 8601
-  imageUrl?: string;
+  imageUrl?: string | null;
   url: string;
   category: Category;
   regionCode?: string;
+  locale?: string;
+  strapiId?: string;
 }
 
 export interface TrendItemPage {

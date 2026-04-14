@@ -7,20 +7,13 @@
  */
 
 import * as fc from 'fast-check';
-import {
-  login,
-  logout,
-  restoreSession,
-  setAuthApiAdapter,
-  type AuthApiAdapter,
-} from '../../services/authService';
+import { login, logout, restoreSession } from '../../services/authService';
 import { setSecureStore, type SecureStoreAdapter } from '../../storage/secureStore';
 import { useAuthStore } from '../../stores/authStore';
 import type { AuthToken } from '../../types/index';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
 
 function createMockSecureStore(): SecureStoreAdapter & { data: Record<string, string> } {
   const data: Record<string, string> = {};
@@ -29,20 +22,6 @@ function createMockSecureStore(): SecureStoreAdapter & { data: Record<string, st
     setItemAsync: async (key, value) => { data[key] = value; },
     getItemAsync: async (key) => data[key] ?? null,
     deleteItemAsync: async (key) => { delete data[key]; },
-  };
-}
-
-function makeSuccessAdapter(token: string): AuthApiAdapter {
-  return {
-    login: async () => ({ token }),
-    register: async () => ({ token }),
-  };
-}
-
-function makeFailAdapter(): AuthApiAdapter {
-  return {
-    login: async () => null,
-    register: async () => null,
   };
 }
 
@@ -64,16 +43,20 @@ describe('Property 3: Auth token round-trip', () => {
         async (tokenData) => {
           const store = createMockSecureStore();
           setSecureStore(store);
-          setAuthApiAdapter(makeSuccessAdapter(tokenData.accessToken));
+          mockFetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+              accessToken: tokenData.accessToken,
+              refreshToken: 'refresh',
+              expiresIn: 3600,
+            }),
+          });
 
           const result = await login('test@example.com', 'pass');
           if (!result.success || !result.token) return false;
 
           const restored = await restoreSession();
-          return (
-            restored !== null &&
-            restored.accessToken === result.token.accessToken
-          );
+          return restored !== null && restored.accessToken === result.token.accessToken;
         },
       ),
       { numRuns: 100 },
@@ -95,10 +78,10 @@ describe('Property 4: Invalid credential errors are non-specific', () => {
         async (email, password) => {
           const store = createMockSecureStore();
           setSecureStore(store);
-          setAuthApiAdapter(makeFailAdapter());
+          mockFetch.mockResolvedValue({ ok: false, status: 401 });
 
           const result = await login(email, password);
-          if (result.success) return true; // not testing success case here
+          if (result.success) return true;
           if (!result.error) return false;
 
           const lower = result.error.toLowerCase();
@@ -116,7 +99,7 @@ describe('Property 4: Invalid credential errors are non-specific', () => {
 // ---------------------------------------------------------------------------
 
 describe('Property 5: Logout clears all auth state', () => {
-  it('after logout, token store is empty and isAuthenticated is false', async () => {
+  it('after logout, token store is empty', async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.record({
@@ -127,6 +110,7 @@ describe('Property 5: Logout clears all auth state', () => {
           const store = createMockSecureStore();
           setSecureStore(store);
           useAuthStore.setState({ token: tokenData, isAuthenticated: true, user: null });
+          mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
 
           await logout();
 
