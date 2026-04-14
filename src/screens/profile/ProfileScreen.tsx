@@ -70,7 +70,22 @@ export function ProfileScreen() {
 
   useEffect(() => {
     Promise.all([getStatus('camera'), getStatus('location'), getStatus('notifications')])
-      .then(([camera, location, notifications]) => setPermStatuses({ camera, location, notifications }));
+      .then(([camera, location, notifications]) => {
+        setPermStatuses({ camera, location, notifications });
+        // Auto-request camera if undetermined
+        if (camera === 'undetermined') {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const mod = require('expo-camera');
+            if (typeof mod.requestCameraPermissionsAsync === 'function') {
+              mod.requestCameraPermissionsAsync().then((res: { status: string }) => {
+                const status = res.status === 'granted' ? 'granted' : res.status === 'denied' ? 'denied' : 'undetermined';
+                setPermStatuses((prev) => ({ ...prev, camera: status as 'granted' | 'denied' | 'undetermined' }));
+              });
+            }
+          } catch { /* expo-camera unavailable */ }
+        }
+      });
   }, []);
 
   async function handleSaveDisplayName() {

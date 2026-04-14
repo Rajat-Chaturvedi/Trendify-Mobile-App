@@ -37,11 +37,22 @@ export function LoginScreen({ onSuccess, onRegister }: Props) {
 
   async function handleBiometric() {
     const available = await isAvailable();
-    if (!available) return;
+    if (!available) {
+      setError('Biometric authentication is not available on this device.');
+      return;
+    }
     const result = await authenticate('Sign in to Trendify');
     if (result.success) {
-      // Biometric success — restore session token (already stored)
-      onSuccess();
+      // Restore the stored token into AuthStore, then fetch profile
+      const { restoreSession, fetchAndSetProfile } = await import('../../services/authService');
+      const token = await restoreSession();
+      if (token) {
+        useAuthStore.getState().setToken(token);
+        await fetchAndSetProfile();
+        onSuccess();
+      } else {
+        setError('No saved session found. Please sign in with your credentials first.');
+      }
     } else {
       setError('Biometric authentication failed. Please use your credentials.');
     }
