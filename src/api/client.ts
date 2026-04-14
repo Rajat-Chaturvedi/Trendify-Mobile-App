@@ -73,7 +73,12 @@ function adaptResponse(raw: unknown): unknown {
 export async function fetchTrendItems(params: FetchTrendParams = {}): Promise<TrendItemPage> {
   const qs = buildQueryString(params);
   const raw = await _adapter.get(`/trends${qs}`);
-  return TrendItemPageSchema.parse(adaptResponse(raw));
+  try {
+    return TrendItemPageSchema.parse(adaptResponse(raw));
+  } catch (e) {
+    console.error('[fetchTrendItems] Zod parse error:', e);
+    throw e;
+  }
 }
 
 export async function fetchTrendItemById(id: string): Promise<TrendItem> {

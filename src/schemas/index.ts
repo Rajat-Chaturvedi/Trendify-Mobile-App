@@ -8,9 +8,10 @@ export const TrendItemSchema = z.object({
   title: z.string(),
   description: z.string(),
   source: z.string(),
-  publishedAt: z.string().datetime(),
-  imageUrl: z.string().url().optional().nullable(),
-  url: z.string().url(),
+  // Use offset:true to accept both Z and +00:00 formats
+  publishedAt: z.string().datetime({ offset: true }),
+  imageUrl: z.string().optional().nullable(),
+  url: z.string(),
   category: z.enum([
     'technology',
     'sports',
@@ -20,8 +21,8 @@ export const TrendItemSchema = z.object({
     'science',
   ]),
   regionCode: z.string().optional(),
-  locale: z.string().optional(),    // returned by real API
-  strapiId: z.string().optional(),  // returned by real API
+  locale: z.string().optional(),
+  strapiId: z.string().optional(),
 });
 
 export const TrendItemPageSchema = z.object({
