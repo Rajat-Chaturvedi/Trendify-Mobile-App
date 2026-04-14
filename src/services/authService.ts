@@ -17,7 +17,12 @@ interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   expiresIn?: number;
-  user?: { id: string; email: string; displayName?: string };
+  // User may be nested under 'user' or returned flat at the top level
+  user?: { id: string; email: string; displayName?: string; avatar?: string };
+  id?: string;
+  email?: string;
+  displayName?: string;
+  avatar?: string;
 }
 
 async function handleAuthResponse(data: AuthResponse): Promise<AuthResult> {
@@ -29,12 +34,14 @@ async function handleAuthResponse(data: AuthResponse): Promise<AuthResult> {
   // Store refresh token separately
   await getSecureStore().setItemAsync('refresh_token', data.refreshToken);
 
-  // Set user profile in store if returned
-  if (data.user) {
+  // Support both nested { user: {...} } and flat { id, email, displayName } shapes
+  const userSource = data.user ?? (data.id ? { id: data.id, email: data.email ?? '', displayName: data.displayName, avatar: data.avatar } : null);
+  if (userSource) {
     const profile: UserProfile = {
-      id: data.user.id,
-      email: data.user.email,
-      displayName: data.user.displayName ?? data.user.email,
+      id: userSource.id,
+      email: userSource.email,
+      displayName: userSource.displayName ?? userSource.email,
+      avatarUrl: userSource.avatar,
     };
     useAuthStore.setState({ user: profile });
   }
@@ -110,4 +117,30 @@ export async function fetchAndSetProfile(): Promise<void> {
       user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email, avatarUrl: data.avatarUrl },
     });
   } catch { /* ignore */ }
+}
+
+// Restore session and fetch profile atomically — used by biometric login
+// Sets token + user in a single state update to avoid navigating before user is available
+export async function restoreSessionWithProfile(token: AuthToken): Promise<boolean> {
+  try {
+    await secureStoreToken(token);
+    // Temporarily store token so apiFetch can use it
+    useAuthStore.setState({ token });
+    const { apiFetch } = await import('../api/http');
+    const res = await apiFetch('/users/me');
+    if (res.ok) {
+      const data = (await res.json()) as { id: string; email: string; displayName?: string; avatarUrl?: string };
+      useAuthStore.setState({
+        token,
+        isAuthenticated: true,
+        user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email, avatarUrl: data.avatarUrl },
+      });
+    } else {
+      // Profile fetch failed — still authenticate with token, user will be null
+      useAuthStore.setState({ token, isAuthenticated: true });
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }

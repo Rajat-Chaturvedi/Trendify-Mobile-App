@@ -44,11 +44,12 @@ export function LoginScreen({ onSuccess, onRegister }: Props) {
     const result = await authenticate('Sign in to Trendify');
     if (result.success) {
       // Restore the stored token into AuthStore, then fetch profile
-      const { restoreSession, fetchAndSetProfile } = await import('../../services/authService');
+      const { restoreSession, restoreSessionWithProfile } = await import('../../services/authService');
       const token = await restoreSession();
       if (token) {
-        useAuthStore.getState().setToken(token);
-        await fetchAndSetProfile();
+        // Fetch profile and set token+user atomically so profile screen
+        // has user data as soon as navigation triggers
+        await restoreSessionWithProfile(token);
         onSuccess();
       } else {
         setError('No saved session found. Please sign in with your credentials first.');
