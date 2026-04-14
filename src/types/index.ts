@@ -54,9 +54,9 @@ export interface TrendItem {
   imageUrl?: string | null;
   url: string;
   category: Category;
-  regionCode?: string;
-  locale?: string;
-  strapiId?: string;
+  regionCode?: string | null;
+  locale?: string | null;
+  strapiId?: string | null;
 }
 
 export interface TrendItemPage {

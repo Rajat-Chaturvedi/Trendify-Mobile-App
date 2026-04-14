@@ -3,26 +3,22 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, Switch, TouchableOpacity,
-  StyleSheet, ScrollView, Linking,
+  View, Text, Switch, TouchableOpacity, TextInput,
+  StyleSheet, ScrollView, Linking, ActivityIndicator, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreferencesStore } from '../../stores/preferencesStore';
 import { useAuthStore } from '../../stores/authStore';
 import { getStatus } from '../../services/permissionManager';
 import { register as registerNotifications, cancelScheduled } from '../../services/notificationService';
+import { apiFetch } from '../../api/http';
 import type { Category, PermissionStatus } from '../../types/index';
 
 const ALL_CATEGORIES: Category[] = [
   'technology', 'sports', 'finance', 'entertainment', 'health', 'science',
 ];
 
-interface PermissionBadgeProps {
-  label: string;
-  status: PermissionStatus;
-}
-
-function PermissionBadge({ label, status }: PermissionBadgeProps) {
+function PermissionBadge({ label, status }: { label: string; status: PermissionStatus }) {
   const color = status === 'granted' ? '#4CAF50' : status === 'denied' ? '#F44336' : '#FF9800';
   return (
     <View style={styles.badge}>
@@ -46,15 +42,11 @@ function PermissionBadge({ label, status }: PermissionBadgeProps) {
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const prefs = usePreferencesStore.getState();
-  const [token, setToken] = useState(useAuthStore.getState().token);
 
-  useEffect(() => {
-    const unsub = useAuthStore.subscribe((state) => setToken(state.token));
-    return unsub;
-  }, []);
-
-  const displayName = token ? 'Trendify User' : 'Not signed in';
-  const displayStatus = token ? 'Signed in' : 'Guest';
+  const [user, setUser] = useState(useAuthStore.getState().user);
+  const [editingName, setEditingName] = useState(false);
+  const [displayName, setDisplayName] = useState(user?.displayName ?? '');
+  const [savingName, setSavingName] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>(prefs.categories);
   const [notificationsEnabled, setNotificationsEnabled] = useState(prefs.notificationsEnabled);
@@ -62,20 +54,45 @@ export function ProfileScreen() {
   const [biometricEnabled, setBiometricEnabled] = useState(prefs.biometricEnabled);
 
   const [permStatuses, setPermStatuses] = useState<Record<string, PermissionStatus>>({
-    camera: 'undetermined',
-    location: 'undetermined',
-    notifications: 'undetermined',
+    camera: 'undetermined', location: 'undetermined', notifications: 'undetermined',
   });
 
   useEffect(() => {
-    Promise.all([
-      getStatus('camera'),
-      getStatus('location'),
-      getStatus('notifications'),
-    ]).then(([camera, location, notifications]) => {
-      setPermStatuses({ camera, location, notifications });
+    const unsub = useAuthStore.subscribe((state) => {
+      setUser(state.user);
+      setDisplayName(state.user?.displayName ?? '');
     });
+    return unsub;
   }, []);
+
+  useEffect(() => {
+    Promise.all([getStatus('camera'), getStatus('location'), getStatus('notifications')])
+      .then(([camera, location, notifications]) => setPermStatuses({ camera, location, notifications }));
+  }, []);
+
+  async function handleSaveDisplayName() {
+    if (!displayName.trim()) return;
+    setSavingName(true);
+    try {
+      const res = await apiFetch('/users/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ displayName: displayName.trim() }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { id: string; email: string; displayName?: string };
+        useAuthStore.setState({
+          user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email },
+        });
+        setEditingName(false);
+      } else {
+        Alert.alert('Error', 'Could not update display name.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not update display name.');
+    } finally {
+      setSavingName(false);
+    }
+  }
 
   function toggleCategory(cat: Category) {
     const updated = categories.includes(cat)
@@ -88,11 +105,8 @@ export function ProfileScreen() {
   async function handleNotificationsToggle(val: boolean) {
     setNotificationsEnabled(val);
     usePreferencesStore.getState().setNotificationsEnabled(val);
-    if (val) {
-      await registerNotifications();
-    } else {
-      await cancelScheduled();
-    }
+    if (val) await registerNotifications();
+    else await cancelScheduled();
   }
 
   function handleLocationToggle(val: boolean) {
@@ -107,14 +121,58 @@ export function ProfileScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}>
-      {/* User info */}
+
+      {/* Account */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
-        <Text style={styles.userEmail}>{displayName}</Text>
-        <Text style={styles.userName}>{displayStatus}</Text>
+        <Text style={styles.userEmail}>{user?.email ?? 'Not signed in'}</Text>
+
+        {editingName ? (
+          <View style={styles.editRow}>
+            <TextInput
+              style={styles.nameInput}
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Display name"
+              autoFocus
+              accessibilityLabel="Display name input"
+            />
+            <TouchableOpacity
+              style={styles.saveBtn}
+              onPress={handleSaveDisplayName}
+              disabled={savingName}
+              accessibilityLabel="Save display name"
+              accessibilityRole="button"
+            >
+              {savingName
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.saveBtnText}>Save</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => { setEditingName(false); setDisplayName(user?.displayName ?? ''); }}
+              accessibilityLabel="Cancel editing"
+              accessibilityRole="button"
+            >
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.nameRow}>
+            <Text style={styles.userName}>{user?.displayName ?? 'Set display name'}</Text>
+            <TouchableOpacity
+              onPress={() => setEditingName(true)}
+              accessibilityLabel="Edit display name"
+              accessibilityRole="button"
+              style={styles.editBtn}
+            >
+              <Text style={styles.editBtnText}>Edit</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
-      {/* Category preferences */}
+      {/* Interests */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Interests</Text>
         <View style={styles.chips}>
@@ -123,7 +181,7 @@ export function ProfileScreen() {
               key={cat}
               style={[styles.chip, categories.includes(cat) && styles.chipActive]}
               onPress={() => toggleCategory(cat)}
-              accessibilityLabel={`${categories.includes(cat) ? 'Deselect' : 'Select'} ${cat} category`}
+              accessibilityLabel={`${categories.includes(cat) ? 'Deselect' : 'Select'} ${cat}`}
               accessibilityRole="checkbox"
             >
               <Text style={[styles.chipText, categories.includes(cat) && styles.chipTextActive]}>
@@ -134,36 +192,22 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      {/* Toggles */}
+      {/* Preferences */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Preferences</Text>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Notifications</Text>
-          <Switch
-            value={notificationsEnabled}
-            onValueChange={handleNotificationsToggle}
-            accessibilityLabel="Toggle notifications"
-          />
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Location</Text>
-          <Switch
-            value={locationEnabled}
-            onValueChange={handleLocationToggle}
-            accessibilityLabel="Toggle location"
-          />
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Biometric Login</Text>
-          <Switch
-            value={biometricEnabled}
-            onValueChange={handleBiometricToggle}
-            accessibilityLabel="Toggle biometric login"
-          />
-        </View>
+        {[
+          { label: 'Notifications', value: notificationsEnabled, onChange: handleNotificationsToggle },
+          { label: 'Location', value: locationEnabled, onChange: handleLocationToggle },
+          { label: 'Biometric Login', value: biometricEnabled, onChange: handleBiometricToggle },
+        ].map(({ label, value, onChange }) => (
+          <View key={label} style={styles.row}>
+            <Text style={styles.rowLabel}>{label}</Text>
+            <Switch value={value} onValueChange={onChange} accessibilityLabel={`Toggle ${label}`} />
+          </View>
+        ))}
       </View>
 
-      {/* Permission status */}
+      {/* Permissions */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Permissions</Text>
         <PermissionBadge label="Camera" status={permStatuses['camera'] as PermissionStatus} />
@@ -175,12 +219,21 @@ export function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: '#F2F2F7' },
   content: { padding: 16, paddingBottom: 32 },
-  section: { backgroundColor: '#fff', borderRadius: 8, padding: 16, marginBottom: 16 },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: 12 },
-  userEmail: { fontSize: 16, fontWeight: '600' },
-  userName: { fontSize: 14, color: '#666', marginTop: 4 },
+  section: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
+  userEmail: { fontSize: 16, fontWeight: '600', color: '#1a1a1a' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  userName: { fontSize: 14, color: '#555', flex: 1 },
+  editBtn: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'flex-end' },
+  editBtnText: { color: '#007AFF', fontSize: 14, fontWeight: '600' },
+  editRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },
+  nameInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, minHeight: 44 },
+  saveBtn: { minWidth: 44, minHeight: 44, backgroundColor: '#007AFF', borderRadius: 8, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  cancelBtn: { minWidth: 44, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  cancelBtnText: { color: '#8E8E93', fontSize: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#ccc', alignItems: 'center', justifyContent: 'center' },
   chipActive: { backgroundColor: '#007AFF', borderColor: '#007AFF' },

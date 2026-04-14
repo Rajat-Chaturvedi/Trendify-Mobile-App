@@ -20,9 +20,9 @@ export const TrendItemSchema = z.object({
     'health',
     'science',
   ]),
-  regionCode: z.string().optional(),
-  locale: z.string().optional(),
-  strapiId: z.string().optional(),
+  regionCode: z.string().nullable().optional(),
+  locale: z.string().nullable().optional(),
+  strapiId: z.string().nullable().optional(),
 });
 
 export const TrendItemPageSchema = z.object({
