@@ -1,7 +1,7 @@
 // RootNavigator
 // Requirements: 10.1, 10.3, 1.1
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 
@@ -22,9 +22,8 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export function RootNavigator() {
   const navRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
 
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => useAuthStore.getState().isAuthenticated,
-  );
+  // Reactive — re-renders when isAuthenticated changes in the store
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const onboardingComplete = getOnboardingComplete();
 
@@ -35,16 +34,15 @@ export function RootNavigator() {
     : 'Auth';
 
   useEffect(() => {
-    const unsubscribe = useAuthStore.subscribe((state) => {
-      setIsAuthenticated(state.isAuthenticated);
-      if (state.isAuthenticated) {
-        navRef.current?.reset({ index: 0, routes: [{ name: 'Main' }] });
-      } else {
+    if (isAuthenticated) {
+      navRef.current?.reset({ index: 0, routes: [{ name: 'Main' }] });
+    } else {
+      // Only redirect to Auth if we've finished the onboarding flow
+      if (onboardingComplete) {
         navRef.current?.reset({ index: 0, routes: [{ name: 'Auth' }] });
       }
-    });
-    return unsubscribe;
-  }, []);
+    }
+  }, [isAuthenticated, onboardingComplete]);
 
   function handleOnboardingComplete() {
     navRef.current?.reset({ index: 0, routes: [{ name: 'Auth' }] });

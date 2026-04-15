@@ -34,19 +34,25 @@ async function handleAuthResponse(data: AuthResponse): Promise<AuthResult> {
   // Store refresh token separately
   await getSecureStore().setItemAsync('refresh_token', data.refreshToken);
 
-  // Support both nested { user: {...} } and flat { id, email, displayName } shapes
+  // Support both nested { user: {...} } and flat { id, email, displayName } shapes.
+  // Note: login/register responses may not include avatarUrl — we fetch the full
+  // profile from /users/me afterwards to ensure avatar and all fields are present.
   const userSource = data.user ?? (data.id ? { id: data.id, email: data.email ?? '', displayName: data.displayName, avatar: data.avatar } : null);
   if (userSource) {
     const profile: UserProfile = {
       id: userSource.id,
       email: userSource.email,
       displayName: userSource.displayName ?? userSource.email,
-      avatarUrl: userSource.avatar,
+      avatarUrl: userSource.avatar ?? null,
     };
     useAuthStore.setState({ token, user: profile, isAuthenticated: true });
   } else {
     useAuthStore.setState({ token, isAuthenticated: true });
   }
+
+  // Always fetch the full profile so avatar and any other fields not in the
+  // auth response are populated immediately (fire-and-forget, non-blocking).
+  fetchAndSetProfile().catch(() => { /* ignore */ });
 
   return { success: true, token };
 }
@@ -114,9 +120,15 @@ export async function fetchAndSetProfile(): Promise<void> {
     const { apiFetch } = await import('../api/http');
     const res = await apiFetch('/users/me');
     if (!res.ok) return;
-    const data = (await res.json()) as { id: string; email: string; displayName?: string; avatarUrl?: string };
+    // API returns `avatar` (base64 data URI) and optionally `avatarUrl`
+    const data = (await res.json()) as { id: string; email: string; displayName?: string; avatarUrl?: string; avatar?: string };
     useAuthStore.setState({
-      user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email, avatarUrl: data.avatarUrl },
+      user: {
+        id: data.id,
+        email: data.email,
+        displayName: data.displayName ?? data.email,
+        avatarUrl: data.avatarUrl ?? data.avatar ?? null,
+      },
     });
   } catch { /* ignore */ }
 }
@@ -131,11 +143,17 @@ export async function restoreSessionWithProfile(token: AuthToken): Promise<boole
     const { apiFetch } = await import('../api/http');
     const res = await apiFetch('/users/me');
     if (res.ok) {
-      const data = (await res.json()) as { id: string; email: string; displayName?: string; avatarUrl?: string };
+      // API returns `avatar` (base64 data URI) and optionally `avatarUrl`
+      const data = (await res.json()) as { id: string; email: string; displayName?: string; avatarUrl?: string; avatar?: string };
       useAuthStore.setState({
         token,
         isAuthenticated: true,
-        user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email, avatarUrl: data.avatarUrl },
+        user: {
+          id: data.id,
+          email: data.email,
+          displayName: data.displayName ?? data.email,
+          avatarUrl: data.avatarUrl ?? data.avatar ?? null,
+        },
       });
     } else {
       // Profile fetch failed — still authenticate with token, user will be null

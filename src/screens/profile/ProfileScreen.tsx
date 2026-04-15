@@ -44,9 +44,13 @@ function PermissionBadge({ label, status }: { label: string; status: PermissionS
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
 
-  const [user, setUser] = useState(() => useAuthStore.getState().user);
+  // Reactive store selectors — re-render automatically when store changes,
+  // no manual subscription or useState snapshot needed.
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
   const [editingName, setEditingName] = useState(false);
-  const [displayName, setDisplayName] = useState(() => useAuthStore.getState().user?.displayName ?? '');
+  const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [savingName, setSavingName] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -59,18 +63,18 @@ export function ProfileScreen() {
     camera: 'undetermined', location: 'undetermined', notifications: 'undetermined',
   });
 
+  // Keep displayName input in sync when the store user changes (e.g. after profile fetch)
   useEffect(() => {
-    const unsub = useAuthStore.subscribe((state) => {
-      setUser(state.user);
-      setDisplayName(state.user?.displayName ?? '');
-    });
-    // If user is not yet populated (e.g. session restored but profile not fetched),
-    // fetch it now so the screen shows the correct data.
-    if (!useAuthStore.getState().user && useAuthStore.getState().isAuthenticated) {
+    setDisplayName(user?.displayName ?? '');
+  }, [user?.displayName]);
+
+  // If authenticated but profile not yet loaded (e.g. session restored before fetch
+  // completed), trigger a fetch now so avatar and display name appear immediately.
+  useEffect(() => {
+    if (isAuthenticated && !user) {
       fetchAndSetProfile();
     }
-    return unsub;
-  }, []);
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     return usePreferencesStore.subscribe((state) => {
@@ -110,9 +114,15 @@ export function ProfileScreen() {
         body: JSON.stringify({ displayName: displayName.trim() }),
       });
       if (res.ok) {
-        const data = (await res.json()) as { id: string; email: string; displayName?: string; avatarUrl?: string };
+        const data = (await res.json()) as { id: string; email: string; displayName?: string; avatarUrl?: string; avatar?: string };
         useAuthStore.setState({
-          user: { id: data.id, email: data.email, displayName: data.displayName ?? data.email, avatarUrl: data.avatarUrl ?? user?.avatarUrl },
+          user: {
+            id: data.id,
+            email: data.email,
+            displayName: data.displayName ?? data.email,
+            // Preserve existing avatar if the PATCH response doesn't include one
+            avatarUrl: data.avatarUrl ?? data.avatar ?? user?.avatarUrl ?? null,
+          },
         });
         setEditingName(false);
       } else {
@@ -176,9 +186,11 @@ export function ProfileScreen() {
       });
 
       if (res.ok) {
-        const data = (await res.json()) as { avatarUrl?: string };
+        const data = (await res.json()) as { avatarUrl?: string; avatar?: string };
         useAuthStore.setState((state) => ({
-          user: state.user ? { ...state.user, avatarUrl: data.avatarUrl ?? asset.uri } : state.user,
+          user: state.user
+            ? { ...state.user, avatarUrl: data.avatarUrl ?? data.avatar ?? asset.uri }
+            : state.user,
         }));
       } else {
         Alert.alert('Error', 'Could not upload photo.');
