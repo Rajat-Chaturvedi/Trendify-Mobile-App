@@ -23,7 +23,7 @@ export function ExploreScreen({ onItemPress }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<Category | undefined>();
 
   const { data, isLoading, isError, refetch } = useTrendFeed(
-    selectedCategory ? { categories: [selectedCategory] } : { categories: [] },
+    selectedCategory ? { categories: [selectedCategory] } : {},
   );
 
   const items = data?.pages.flatMap((p) => p.items) ?? [];

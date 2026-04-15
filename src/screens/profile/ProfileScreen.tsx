@@ -12,7 +12,7 @@ import { usePreferencesStore } from '../../stores/preferencesStore';
 import { useAuthStore } from '../../stores/authStore';
 import { getStatus } from '../../services/permissionManager';
 import { register as registerNotifications, cancelScheduled } from '../../services/notificationService';
-import { logout } from '../../services/authService';
+import { logout, fetchAndSetProfile } from '../../services/authService';
 import { apiFetch } from '../../api/http';
 import type { Category, PermissionStatus } from '../../types/index';
 
@@ -43,18 +43,17 @@ function PermissionBadge({ label, status }: { label: string; status: PermissionS
 
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const prefs = usePreferencesStore.getState();
 
-  const [user, setUser] = useState(useAuthStore.getState().user);
+  const [user, setUser] = useState(() => useAuthStore.getState().user);
   const [editingName, setEditingName] = useState(false);
-  const [displayName, setDisplayName] = useState(user?.displayName ?? '');
+  const [displayName, setDisplayName] = useState(() => useAuthStore.getState().user?.displayName ?? '');
   const [savingName, setSavingName] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  const [categories, setCategories] = useState<Category[]>(prefs.categories);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(prefs.notificationsEnabled);
-  const [locationEnabled, setLocationEnabled] = useState(prefs.locationEnabled);
-  const [biometricEnabled, setBiometricEnabled] = useState(prefs.biometricEnabled);
+  const [categories, setCategories] = useState<Category[]>(() => usePreferencesStore.getState().categories);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => usePreferencesStore.getState().notificationsEnabled);
+  const [locationEnabled, setLocationEnabled] = useState(() => usePreferencesStore.getState().locationEnabled);
+  const [biometricEnabled, setBiometricEnabled] = useState(() => usePreferencesStore.getState().biometricEnabled);
 
   const [permStatuses, setPermStatuses] = useState<Record<string, PermissionStatus>>({
     camera: 'undetermined', location: 'undetermined', notifications: 'undetermined',
@@ -65,7 +64,21 @@ export function ProfileScreen() {
       setUser(state.user);
       setDisplayName(state.user?.displayName ?? '');
     });
+    // If user is not yet populated (e.g. session restored but profile not fetched),
+    // fetch it now so the screen shows the correct data.
+    if (!useAuthStore.getState().user && useAuthStore.getState().isAuthenticated) {
+      fetchAndSetProfile();
+    }
     return unsub;
+  }, []);
+
+  useEffect(() => {
+    return usePreferencesStore.subscribe((state) => {
+      setCategories(state.categories);
+      setNotificationsEnabled(state.notificationsEnabled);
+      setLocationEnabled(state.locationEnabled);
+      setBiometricEnabled(state.biometricEnabled);
+    });
   }, []);
 
   useEffect(() => {

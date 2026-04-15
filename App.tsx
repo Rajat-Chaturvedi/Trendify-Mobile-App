@@ -7,7 +7,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { restoreSession, restoreSessionWithProfile } from './src/services/authService';
-import { useAuthStore } from './src/stores/authStore';
 import { useBookmarksStore } from './src/stores/bookmarksStore';
 import { usePreferencesStore } from './src/stores/preferencesStore';
 

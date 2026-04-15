@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FeedNavigator } from './FeedNavigator';
 import { ExploreNavigator } from './ExploreNavigator';
-import { BookmarksScreen } from '../screens/bookmarks/BookmarksScreen';
+import { BookmarksNavigator } from './BookmarksNavigator';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 
 export type MainTabParamList = {
@@ -59,9 +59,7 @@ export function MainNavigator() {
     >
       <Tab.Screen name="Feed" component={FeedNavigator} />
       <Tab.Screen name="Explore" component={ExploreNavigator} />
-      <Tab.Screen name="Bookmarks">
-        {() => <BookmarksScreen onItemPress={() => {}} />}
-      </Tab.Screen>
+      <Tab.Screen name="Bookmarks" component={BookmarksNavigator} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

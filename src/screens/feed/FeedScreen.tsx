@@ -29,7 +29,15 @@ export function FeedScreen({ onItemPress, onBookmarksPress }: Props) {
   const [regionCode, setRegionCode] = useState<string | undefined>();
   const [locationLoading, setLocationLoading] = useState(false);
 
-  const locationEnabled = usePreferencesStore.getState().locationEnabled;
+  const [locationEnabled, setLocationEnabled] = useState(
+    () => usePreferencesStore.getState().locationEnabled,
+  );
+
+  useEffect(() => {
+    return usePreferencesStore.subscribe((state) => {
+      setLocationEnabled(state.locationEnabled);
+    });
+  }, []);
 
   useEffect(() => {
     if (!locationEnabled) return;

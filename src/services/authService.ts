@@ -43,7 +43,9 @@ async function handleAuthResponse(data: AuthResponse): Promise<AuthResult> {
       displayName: userSource.displayName ?? userSource.email,
       avatarUrl: userSource.avatar,
     };
-    useAuthStore.setState({ user: profile });
+    useAuthStore.setState({ token, user: profile, isAuthenticated: true });
+  } else {
+    useAuthStore.setState({ token, isAuthenticated: true });
   }
 
   return { success: true, token };
